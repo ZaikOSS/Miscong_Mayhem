@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+psycopg2-binary
+minio
+python-multipart
+python-jose[cryptography]
+passlib[bcrypt]

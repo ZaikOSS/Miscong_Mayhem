@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # DATABASE (PostgreSQL)
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: admin
+      # [M1] Password in clear text in a versioned file
+      POSTGRES_PASSWORD: password123 
+      POSTGRES_DB: sharepy_db
+    ports:
+      # [M12] Database port 5432 exposed to the internet
+      - "5432:5432" 
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # DATABASE ADMIN (Adminer)
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      # [M5] Adminer accessible publicly without extra auth
+      - "8080:8080" 
+    depends_on:
+      - db
+
+  # FILE STORAGE (MinIO)
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      # [M12] MinIO port 9000 exposed to the internet
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  # BACKEND (FastAPI)
+  backend:
+    build: ./backend
+    container_name: sharepy_backend
+    volumes:
+      - ./backend:/app
+      - ./uploads:/app/uploads 
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - minio
+    # [FIX 1] Load secrets so they appear in /debug/info (M1, M6, M15)
+    env_file:
+      - ./backend/.env
+
+  # REVERSE PROXY (Nginx)
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./uploads:/app/uploads:ro
+      # [FIX 2] Allow Nginx to see the source code folder (for M4)
+      - ./backend:/app_code:ro 
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  minio_data:
